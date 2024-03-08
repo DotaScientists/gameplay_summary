@@ -1,0 +1,7 @@
+requests == 2.31.*
+notebook == 7.1.*
+ipython == 8.22.*
+pandas == 2.2.*
+jsonlines == 4.0.*
+matplotlib == 3.8.*
+seaborn == 0.13.*

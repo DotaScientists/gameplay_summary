@@ -1,0 +1,4 @@
+**/*.jsonlines
+venv/**
+output.json
+.idea/**

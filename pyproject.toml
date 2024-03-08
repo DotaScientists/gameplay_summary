@@ -1,0 +1,14 @@
+[project]
+name = "gameplay_summary"
+version = "0.1.0"
+readme = "README.md"
+requires-python = "~=3.11"
+dynamic = ["dependencies"]
+
+[build-system]
+requires = ["setuptools==69.0.*", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+dynamic.dependencies.file = ["requirements.txt"]
+packages.find.where = ["src"]
