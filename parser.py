@@ -201,6 +201,12 @@ def process_combatlog_damage_data(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _postprocess_common_data(df: pd.DataFrame, winning_team: Team) -> dict:
+    """
+    Adds data that doesn't change during the game.
+    :param df:
+    :param winning_team:
+    :return:
+    """
     slot = int(df['slot_'].unique()[0])
     hero_name = df['hero_name'].unique()[0]
     hero_name = process_hero_name(hero_name)
@@ -212,6 +218,11 @@ def _postprocess_common_data(df: pd.DataFrame, winning_team: Team) -> dict:
 
 
 def _postprocess_player_data(df: pd.DataFrame) -> dict:
+    """
+    Adds the stats for 5 minute intervals.
+    :param df:
+    :return:
+    """
     player_data = {}
     df = df.sort_values(by='minute')
     player_data['stats'] = [
@@ -233,6 +244,11 @@ def _postprocess_player_data(df: pd.DataFrame) -> dict:
 
 
 def _postprocess_final_stats(df: pd.DataFrame) -> dict:
+    """
+    Adds the final stats, computed at the end of the game.
+    :param df:
+    :return:
+    """
     player_data = dict()
     player_data['final stats'] = {
         "gold": int(df['gold_max'].max()),
@@ -247,6 +263,12 @@ def _postprocess_final_stats(df: pd.DataFrame) -> dict:
 
 
 def _postprocess_benchmarks(hero_id: int, heroes_benchmarks: HeroBenchmarks) -> dict:
+    """
+    Adds average stats for this hero.
+    :param hero_id:
+    :param heroes_benchmarks:
+    :return:
+    """
     player_data = dict()
     benchmark = heroes_benchmarks.get_benchmark(hero_id, Config.BENCHMARK_PERCENTILE)
     player_data['benchmarks'] = {
@@ -283,6 +305,13 @@ def postprocess_data(df: pd.DataFrame, winning_team: Team, heroes_benchmarks: He
     return player_data
 
 def process_replay_data(df: pd.DataFrame, heroes_info: dict, heroes_benchmarks: HeroBenchmarks) -> dict:
+    """
+    Processes the raw replay data and outputs the final json object.
+    :param df:
+    :param heroes_info:
+    :param heroes_benchmarks:
+    :return:
+    """
     df = preprocess_data(df)
     interval = get_df_by_type(df, 'interval')
     dota_combatlog_damage = get_df_by_type(df, 'DOTA_COMBATLOG_DAMAGE')
