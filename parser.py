@@ -53,30 +53,6 @@ class Config:
     HERO_BENCHMARKS_PASS: Path = Path('data/benchmarks.json')
 
 
-def agg_per_min(col: pd.Series) -> float:
-    """
-    Aggregate the data per minute
-    :param col: pandas series
-    :return:
-    """
-    return (col.max() - col.min()) / Config.MINUTE_INTERVAL
-
-
-INTERVAL_AGGREGATE: dict[str: str] = {
-    "time": "last",
-    "level": "last",
-    "gold": [agg_per_min, "max"],
-    "lh": [agg_per_min, "max"],
-    "xp": [agg_per_min, "max"],
-    "kills": [agg_per_min, "max"],
-    "deaths": [agg_per_min, "max"],
-    "assists": [agg_per_min, "max"],
-    "denies": [agg_per_min, "max"],
-    "hero_id": "last",
-    "teamfight_participation": "sum",
-}
-
-
 def extract_winning_team(df: pd.DataFrame) -> Team:
     """
     Check if radiant won the game
@@ -124,7 +100,7 @@ def get_df_by_type(df: pd.DataFrame, type: str) -> pd.DataFrame:
     :param type: type of the dataframe
     :return: pandas dataframe
     """
-    return df[df['type'] == type]
+    return df[df['type'] == type].copy()
 
 
 def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -138,9 +114,10 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     :param df: pandas dataframe
     :return: tuple of pandas dataframes
     """
-    df = df[df['time'] >= 0].reset_index(drop=True)
+    df = df[df['time'] > 0].reset_index(drop=True)
     df["minute"] = df["time"] // 60
-    df['minute'] = pd.to_datetime(df['minute'], unit='m')
+    df = df.sort_values(by=["time", "slot"])
+    # df['minute'] = pd.to_datetime(df['minute'], unit='m')
     return df
 
 
@@ -152,9 +129,26 @@ def split_data_by_player(df: pd.DataFrame) -> list[pd.DataFrame]:
     """
     slots_list = []
     for slot in range(0, Config.MAX_PLAYERS):
-        slots_list.append(df.loc[df["slot_"] == slot])
+        slots_list.append(df.loc[df["slot"] == slot])
     return slots_list
 
+
+def compute_final_stats(df: pd.DataFrame) -> dict:
+    last_second = df["time"].max()
+    final_df = df[df["time"] == last_second]
+    output_data = dict()
+    for slot in range(0, Config.MAX_PLAYERS):
+        df = final_df.loc[final_df["slot"] == slot].tail(1)
+        output_data[slot] = {
+            "gold_max": df["gold"].item(),
+            "lh_max": df["lh"].item(),
+            "denies_max": df["denies"].item(),
+            "xp_max": df["xp"].item(),
+            "kills_max": df["kills"].item(),
+            "deaths_max": df["deaths"].item(),
+            "assists_max": df["assists"].item(),
+        }
+    return output_data
 
 def process_interval_data(df: pd.DataFrame, heroes_info: dict) -> pd.DataFrame:
     """
@@ -167,18 +161,43 @@ def process_interval_data(df: pd.DataFrame, heroes_info: dict) -> pd.DataFrame:
     :param heroes_info: heros info dictionary
     :return: pandas dataframe
     """
-    df = df.groupby(by=[
-        pd.Grouper(key='minute', freq=f'{Config.MINUTE_INTERVAL}T'),
+    df["block"] = (df["time"] - 1 ) / 60 // Config.MINUTE_INTERVAL
+    first_group_df = df.groupby(by=[
+        "block",
         'slot'
-    ]).agg(INTERVAL_AGGREGATE).reset_index()
-    df.columns = ['_'.join(col).strip() for col in df.columns]
+    ], as_index=False).agg(
+        time=pd.NamedAgg(column="time", aggfunc="last"),
+        minute=pd.NamedAgg(column="minute", aggfunc="last"),
+        level=pd.NamedAgg(column="level", aggfunc="last"),
+        hero_id=pd.NamedAgg(column="hero_id", aggfunc="last"),
+        teamfight_participation=pd.NamedAgg(column="teamfight_participation", aggfunc="sum"),
+    ).reset_index()
+    second_group_df = []
+    per_minute_columns = ["gold", "lh", "xp", "kills", "deaths", "assists", "denies"]
+    for index, group_df in df.groupby(by=["block",'slot'], as_index=False):
+        aggregated_data = {
+            col: (group_df[col].max() - group_df[col].min()) / (group_df["time"].max() - group_df["time"].min()) * 60
+            for col in per_minute_columns
+        }
+        aggregated_data["minute"] = group_df["minute"].max()
+        aggregated_data["slot"] = group_df["slot"].max()
+        second_group_df.append(aggregated_data)
+    second_group_df = pd.DataFrame(second_group_df)
 
-    df['hero_name'] = df['hero_id_last'].apply(
+    full_interval_df = first_group_df.merge(
+        second_group_df,
+        on=["minute", "slot"],
+        how="left"
+    )
+
+    # df.columns = ['_'.join(col).strip() for col in df.columns]
+
+    full_interval_df['hero_name'] = full_interval_df['hero_id'].apply(
         # Conver the hero id at first to int, because in the data it is a float,
         # then convert it to string, because the heros_info keys are strings
         lambda x: heroes_info[str(int(x))]['name']
     )
-    return df
+    return full_interval_df
 
 
 def process_combatlog_damage_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -192,14 +211,19 @@ def process_combatlog_damage_data(df: pd.DataFrame) -> pd.DataFrame:
     # filter the rows where the targetname starts with 'npc_dota_hero_'
     df = df[df['targetname'].str.startswith('npc_dota_hero_')]
     # group by  Config.MINUTE_INTERVAL and attackername
+    df["block"] = (df["time"] - 1 ) / 60 // Config.MINUTE_INTERVAL
     df = df.groupby(by=[
-        pd.Grouper(key='minute', freq=f'{Config.MINUTE_INTERVAL}T'),
+        "block",
         'attackername',
-    ]).agg({"value": "sum"}).reset_index()
-    # rename the value column to damage_dealt_to_heroes
-    df = df.rename(columns={"value": "damage_dealt_to_heroes"})
+    ], as_index=False).agg(
+        damage_dealt_to_heroes=pd.NamedAgg(column="value", aggfunc="sum"),
+        minute=pd.NamedAgg(column="minute", aggfunc="last"),
+        time_max=pd.NamedAgg(column="time", aggfunc="max"),
+        time_min=pd.NamedAgg(column="time", aggfunc="min"),
+    )
     # Compute the damage per minute
-    df['damage_dealt_to_heroes'] = df['damage_dealt_to_heroes'] / Config.MINUTE_INTERVAL
+    df['damage_dealt_to_heroes'] = df['damage_dealt_to_heroes'] / (df['time_max'] - df['time_min']).clip(lower=1) * 60
+    df = df.drop(columns=["time_max", "time_min"])
     return df
 
 
@@ -210,7 +234,7 @@ def _postprocess_common_data(df: pd.DataFrame, winning_team: Team) -> dict:
     :param winning_team:
     :return:
     """
-    slot = int(df['slot_'].unique()[0])
+    slot = int(df['slot'].unique()[0])
     hero_name = df['hero_name'].unique()[0]
     hero_name = process_hero_name(hero_name)
     player_data = {}
@@ -228,40 +252,21 @@ def _postprocess_player_data(df: pd.DataFrame) -> dict:
     """
     player_data = {}
     df = df.sort_values(by='minute')
+
     player_data['stats'] = [
         {
-            "minute": row['minute'].minute + Config.MINUTE_INTERVAL,
-            f"gold per minute": int(row['gold_agg_per_min']),
-            f"last hits per minute": row['lh_agg_per_min'],
-            f"denies per minute": row['denies_agg_per_min'],
-            f"xp per minute": int(row['xp_agg_per_min']),
-            f"kills per minute": row['kills_agg_per_min'],
-            f"deaths per minute": row['deaths_agg_per_min'],
-            f"assists per minute": row['assists_agg_per_min'],
-            f"damage per minute": row[
-                'damage_dealt_to_heroes_agg_per_min'] if 'damage_dealt_to_heroes_agg_per_min' in row else 0,
-            "teamfight participation": int(row['teamfight_participation_sum']),
+            "minute": row['minute'] + Config.MINUTE_INTERVAL,
+            f"gold per minute": int(row['gold']),
+            f"last hits per minute": round(row['lh'], 1),
+            f"denies per minute": round(row['denies'], 1),
+            f"xp per minute": int(row['xp']),
+            f"kills per minute": round(row['kills'], 1),
+            f"deaths per minute": round(row['deaths'], 1),
+            f"assists per minute": round(row['assists'], 1),
+            f"damage per minute":  int(row['damage_dealt_to_heroes']) if not pd.isna(row['damage_dealt_to_heroes']) else 0,
+            "teamfight participation": int(row['teamfight_participation']),
         } for _, row in df.iterrows()
     ]
-    return player_data
-
-
-def _postprocess_final_stats(df: pd.DataFrame) -> dict:
-    """
-    Adds the final stats, computed at the end of the game.
-    :param df:
-    :return:
-    """
-    player_data = dict()
-    player_data['final stats'] = {
-        "gold": int(df['gold_max'].max()),
-        "last hits": int(df['lh_max'].max()),
-        "denies": int(df['denies_max'].max()),
-        "xp": int(df['xp_max'].max()),
-        "kills": int(df['kills_max'].max()),
-        "deaths": int(df['deaths_max'].max()),
-        "assists": int(df['assists_max'].max()),
-    }
     return player_data
 
 
@@ -283,8 +288,15 @@ def _postprocess_benchmarks(hero_id: int, heroes_benchmarks: HeroBenchmarks) -> 
     }
     return player_data
 
+def _postprocess_final_stats(final_stats: dict[str, float]) -> dict:
+    output = {
+        key: int(value)
+        for key, value in final_stats.items()
+    }
+    return output
 
-def postprocess_data(df: pd.DataFrame, winning_team: Team, heroes_benchmarks: HeroBenchmarks) -> dict:
+
+def postprocess_data(df: pd.DataFrame, winning_team: Team, heroes_benchmarks: HeroBenchmarks, final_stats: dict) -> dict:
     """
     Postprocess the data per player.
     :param df: pandas dataframe
@@ -295,13 +307,14 @@ def postprocess_data(df: pd.DataFrame, winning_team: Team, heroes_benchmarks: He
     player_data = {}
 
     # extract the hero name from the first row
-    hero_id = int(df['hero_id_last'].unique()[0])
+    hero_id = int(df['hero_id'].unique()[0])
+    slot = df['slot'].unique()[0]
 
     # add common data
     player_data.update(_postprocess_common_data(df, winning_team))
     # add the stats
     player_data.update(_postprocess_player_data(df))
-    player_data.update(_postprocess_final_stats(df))
+    player_data["final stats"] = _postprocess_final_stats(final_stats[slot])
     # add the benchmarks
     player_data.update(_postprocess_benchmarks(hero_id, heroes_benchmarks))
 
@@ -317,6 +330,7 @@ def process_replay_data(df: pd.DataFrame, heroes_info: dict, heroes_benchmarks: 
     """
     df = preprocess_data(df)
     interval = get_df_by_type(df, 'interval')
+    final_stats = compute_final_stats(interval)
     dota_combatlog_damage = get_df_by_type(df, 'DOTA_COMBATLOG_DAMAGE')
     dota_combatlog_team_building_kill = get_df_by_type(df, 'DOTA_COMBATLOG_TEAM_BUILDING_KILL')
 
@@ -326,14 +340,14 @@ def process_replay_data(df: pd.DataFrame, heroes_info: dict, heroes_benchmarks: 
 
     combined_df = pd.merge(
         left=interval,
-        right=dota_combatlog_damage,
-        left_on=['minute_', 'hero_name'],
-        right_on=['minute', 'attackername'],
-        how='outer'
+        right=dota_combatlog_damage[["block", "attackername", "damage_dealt_to_heroes"]],
+        left_on=['block', 'hero_name'],
+        right_on=['block', 'attackername'],
+        how='left',
     )
     slots_df = split_data_by_player(combined_df)
     post_process_data = {
-        slot: postprocess_data(data, winning_team, heroes_benchmarks)
+        slot: postprocess_data(data, winning_team, heroes_benchmarks, final_stats)
         for slot, data in enumerate(slots_df)
     }
     return post_process_data
