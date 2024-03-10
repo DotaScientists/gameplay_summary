@@ -6,18 +6,6 @@ from enum import Enum
 import dataclasses
 
 
-
-
-class _HeroBenchmark:
-    gold: str = "gold_per_min"
-    xp: str = "xp_per_min"
-    kills: str = "kills_per_min"
-    last_hits: str = "last_hits_per_min"
-    damage_dealt_to_heroes: str = "hero_damage_per_min"
-    hero_healing: str = "hero_healing_per_min"
-    tower_damage: str = "tower_damage"
-
-
 @dataclasses.dataclass
 class Benchmark:
     gold_per_min: float
