@@ -49,6 +49,9 @@ class Config:
 
     BENCHMARK_PERCENTILE: str = "50"
 
+    HERO_INFO_PASS: Path = Path('data/heroes.json')
+    HERO_BENCHMARKS_PASS: Path = Path('data/benchmarks.json')
+
 
 def agg_per_min(col: pd.Series) -> float:
     """
@@ -361,11 +364,10 @@ def parse_data(
 
 
 if __name__ == '__main__':
-    HERO_INFO_PASS = Path('data/heroes.json')
-    HERO_BENCHMARKS_PASS = Path('data/benchmarks.json')
+    project_root = Path().absolute()
     parse_data(
         Path('raw_replays/7623910241.jsonlines'),
-        HERO_INFO_PASS,
-        HERO_BENCHMARKS_PASS,
+        project_root / Config.HERO_INFO_PASS,
+        project_root / Config.HERO_BENCHMARKS_PASS,
         Path('7623910241.json'),
     )
