@@ -302,11 +302,11 @@ def _postprocess_benchmarks(hero_id: int, heroes_benchmarks: HeroBenchmarks, mat
     benchmark = heroes_benchmarks.get_benchmark(hero_id, Config.BENCHMARK_PERCENTILE)
     match_length = match_length / 60
     player_data['benchmarks'] = {
-        'total gold': int(benchmark.gold_per_min * match_length),
-        'total xp': int(benchmark.xp_per_min * match_length),
-        'total kills': round(benchmark.kills_per_min * match_length),
-        'total last hits': round(benchmark.last_hits_per_min * match_length),
-        'total damage': round(benchmark.hero_damage_per_min * match_length)
+        'Total gold': int(benchmark.gold_per_min * match_length),
+        'Total xp': int(benchmark.xp_per_min * match_length),
+        'Total kills': round(benchmark.kills_per_min * match_length),
+        'Total last hits': round(benchmark.last_hits_per_min * match_length),
+        'Total damage': round(benchmark.hero_damage_per_min * match_length)
     }
     return player_data
 
