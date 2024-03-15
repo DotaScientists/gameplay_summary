@@ -51,6 +51,8 @@ class Config:
 
     HERO_INFO_PASS: Path = Path('data/heroes.json')
     HERO_BENCHMARKS_PASS: Path = Path('data/benchmarks.json')
+    # PER_MINUTE_COLUMNS: list[str] = ["gold", "lh", "xp", "kills", "deaths", "assists", "denies"]
+    PER_MINUTE_COLUMNS: list[str] = ["gold", "lh", "xp"]
 
 
 def extract_winning_team(df: pd.DataFrame) -> Team:
@@ -140,13 +142,13 @@ def compute_final_stats(df: pd.DataFrame) -> dict:
     for slot in range(0, Config.MAX_PLAYERS):
         df = final_df.loc[final_df["slot"] == slot].tail(1)
         output_data[slot] = {
-            "gold_max": df["gold"].item(),
-            "lh_max": df["lh"].item(),
-            "denies_max": df["denies"].item(),
-            "xp_max": df["xp"].item(),
-            "kills_max": df["kills"].item(),
-            "deaths_max": df["deaths"].item(),
-            "assists_max": df["assists"].item(),
+            "Total hold": df["gold"].item(),
+            "Total last hits": df["lh"].item(),
+            "Total denies": df["denies"].item(),
+            "Total xp": df["xp"].item(),
+            "Total kills": df["kills"].item(),
+            "Total deaths": df["deaths"].item(),
+            "Total assists": df["assists"].item(),
         }
     return output_data
 
@@ -171,13 +173,18 @@ def process_interval_data(df: pd.DataFrame, heroes_info: dict) -> pd.DataFrame:
         level=pd.NamedAgg(column="level", aggfunc="last"),
         hero_id=pd.NamedAgg(column="hero_id", aggfunc="last"),
         teamfight_participation=pd.NamedAgg(column="teamfight_participation", aggfunc="sum"),
+
+        kills = pd.NamedAgg(column="kills", aggfunc="max"),
+        deaths = pd.NamedAgg(column="deaths", aggfunc="max"),
+        assists = pd.NamedAgg(column="assists", aggfunc="max"),
+        denies=pd.NamedAgg(column="denies", aggfunc="max"),
     ).reset_index()
     second_group_df = []
-    per_minute_columns = ["gold", "lh", "xp", "kills", "deaths", "assists", "denies"]
+
     for index, group_df in df.groupby(by=["block",'slot'], as_index=False):
         aggregated_data = {
             col: (group_df[col].max() - group_df[col].min()) / (group_df["time"].max() - group_df["time"].min()) * 60
-            for col in per_minute_columns
+            for col in Config.PER_MINUTE_COLUMNS
         }
         aggregated_data["minute"] = group_df["minute"].max()
         aggregated_data["slot"] = group_df["slot"].max()
@@ -190,7 +197,6 @@ def process_interval_data(df: pd.DataFrame, heroes_info: dict) -> pd.DataFrame:
         how="left"
     )
 
-    # df.columns = ['_'.join(col).strip() for col in df.columns]
 
     full_interval_df['hero_name'] = full_interval_df['hero_id'].apply(
         # Conver the hero id at first to int, because in the data it is a float,
@@ -210,8 +216,11 @@ def process_combatlog_damage_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df[df['attackername'].str.startswith('npc_dota_hero_')]
     # filter the rows where the targetname starts with 'npc_dota_hero_'
     df = df[df['targetname'].str.startswith('npc_dota_hero_')]
+
+    df = df[(df["attackerhero"] == 1) & (df["targethero"] == 1)]
     # group by  Config.MINUTE_INTERVAL and attackername
     df["block"] = (df["time"] - 1 ) / 60 // Config.MINUTE_INTERVAL
+
     df = df.groupby(by=[
         "block",
         'attackername',
@@ -255,22 +264,22 @@ def _postprocess_player_data(df: pd.DataFrame) -> dict:
 
     player_data['stats'] = [
         {
-            "minute": row['minute'] + Config.MINUTE_INTERVAL,
+            "minute": row['minute'],
             f"gold per minute": int(row['gold']),
             f"last hits per minute": round(row['lh'], 1),
-            f"denies per minute": round(row['denies'], 1),
+            f"denies": round(row['denies']),
             f"xp per minute": int(row['xp']),
-            f"kills per minute": round(row['kills'], 1),
-            f"deaths per minute": round(row['deaths'], 1),
-            f"assists per minute": round(row['assists'], 1),
+            f"kills": round(row['kills']),
+            f"deaths": round(row['deaths']),
+            f"assists": round(row['assists']),
             f"damage per minute":  int(row['damage_dealt_to_heroes']) if not pd.isna(row['damage_dealt_to_heroes']) else 0,
-            "teamfight participation": int(row['teamfight_participation']),
+            "teamfight seconds": int(row['teamfight_participation']),
         } for _, row in df.iterrows()
     ]
     return player_data
 
 
-def _postprocess_benchmarks(hero_id: int, heroes_benchmarks: HeroBenchmarks) -> dict:
+def _postprocess_benchmarks(hero_id: int, heroes_benchmarks: HeroBenchmarks, match_length: int) -> dict:
     """
     Adds average stats for this hero.
     :param hero_id:
@@ -279,11 +288,12 @@ def _postprocess_benchmarks(hero_id: int, heroes_benchmarks: HeroBenchmarks) -> 
     """
     player_data = dict()
     benchmark = heroes_benchmarks.get_benchmark(hero_id, Config.BENCHMARK_PERCENTILE)
+    match_length = match_length / 60
     player_data['benchmarks'] = {
-        'gold_per_min': int(benchmark.gold_per_min),
-        'xp_per_min': int(benchmark.xp_per_min),
-        'kills_per_min': round(benchmark.kills_per_min, 1),
-        'last_hits_per_min': round(benchmark.last_hits_per_min, 1),
+        'total gold': int(benchmark.gold_per_min * match_length),
+        'total xp': int(benchmark.xp_per_min * match_length),
+        'total kills': round(benchmark.kills_per_min * match_length),
+        'total last hits': round(benchmark.last_hits_per_min * match_length),
         'damage_per_min': int(benchmark.hero_damage_per_min)
     }
     return player_data
@@ -296,7 +306,10 @@ def _postprocess_final_stats(final_stats: dict[str, float]) -> dict:
     return output
 
 
-def postprocess_data(df: pd.DataFrame, winning_team: Team, heroes_benchmarks: HeroBenchmarks, final_stats: dict) -> dict:
+def postprocess_data(
+        df: pd.DataFrame, winning_team: Team, heroes_benchmarks: HeroBenchmarks, final_stats: dict,
+        match_length: int
+    ) -> dict:
     """
     Postprocess the data per player.
     :param df: pandas dataframe
@@ -316,9 +329,18 @@ def postprocess_data(df: pd.DataFrame, winning_team: Team, heroes_benchmarks: He
     player_data.update(_postprocess_player_data(df))
     player_data["final stats"] = _postprocess_final_stats(final_stats[slot])
     # add the benchmarks
-    player_data.update(_postprocess_benchmarks(hero_id, heroes_benchmarks))
+    player_data.update(_postprocess_benchmarks(hero_id, heroes_benchmarks, match_length))
 
     return player_data
+
+def get_match_length(df: pd.DataFrame) -> int:
+    """
+    Get the length of the match
+    :param df: pandas dataframe
+    :return: int
+    """
+    temp = df[df['type'] == 'interval']
+    return temp['time'].max() - temp['time'].min()
 
 def process_replay_data(df: pd.DataFrame, heroes_info: dict, heroes_benchmarks: HeroBenchmarks) -> dict:
     """
@@ -328,6 +350,7 @@ def process_replay_data(df: pd.DataFrame, heroes_info: dict, heroes_benchmarks: 
     :param heroes_benchmarks:
     :return:
     """
+    match_length = get_match_length(df)
     df = preprocess_data(df)
     interval = get_df_by_type(df, 'interval')
     final_stats = compute_final_stats(interval)
@@ -347,7 +370,7 @@ def process_replay_data(df: pd.DataFrame, heroes_info: dict, heroes_benchmarks: 
     )
     slots_df = split_data_by_player(combined_df)
     post_process_data = {
-        slot: postprocess_data(data, winning_team, heroes_benchmarks, final_stats)
+        slot: postprocess_data(data, winning_team, heroes_benchmarks, final_stats, match_length)
         for slot, data in enumerate(slots_df)
     }
     return post_process_data
