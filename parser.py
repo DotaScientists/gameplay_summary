@@ -152,6 +152,7 @@ def compute_final_stats(interval_df: pd.DataFrame, combat_df: pd.DataFrame, hero
             "Total kills": df["kills"].item(),
             "Total deaths": df["deaths"].item(),
             "Total assists": df["assists"].item(),
+            "Total KDA": round((df["kills"].item() + df["assists"].item()) / df["deaths"].item(), 1),
             "Total damage": slot_combat_df["damage_dealt_to_heroes"].sum(),
         }
 
@@ -194,6 +195,8 @@ def process_interval_data(df: pd.DataFrame, heroes_info: dict) -> pd.DataFrame:
         }
         aggregated_data["denies"] = group_df["denies"].max() - group_df["denies"].min()
         aggregated_data["lh"] = group_df["lh"].max() - group_df["lh"].min()
+        deaths = min(group_df["deaths"].max(), 1)
+        aggregated_data["kda"] = (group_df["kills"].max() + group_df["assists"].max()) / deaths
 
         aggregated_data["minute"] = group_df["minute"].max()
         aggregated_data["slot"] = group_df["slot"].max()
@@ -262,6 +265,7 @@ def _postprocess_common_data(df: pd.DataFrame, winning_team: Team) -> dict:
     player_data['team'] = get_player_team(slot).value
     player_data['win'] = player_data['team'] == winning_team.value
     player_data['hero'] = hero_name
+    player_data["interval"] = Config.MINUTE_INTERVAL
     return player_data
 
 
@@ -284,6 +288,7 @@ def _postprocess_player_data(df: pd.DataFrame) -> dict:
             f"kills": int(row['kills']),
             f"deaths": int(row['deaths']),
             f"assists": int(row['assists']),
+            f"KDA": round(row["kda"], 1),
             f"damage per minute":  int(row['dpm']) if not pd.isna(row['dpm']) else 0,
             "teamfight seconds": int(row['teamfight_participation']),
         } for _, row in df.iterrows()

@@ -13,6 +13,7 @@ INTERVAL_TEMPLATE = """
     Kills: <KILLS>,
     Deaths: <DEATHS>,
     Assists: <ASSISTS>,
+    KDA: <KDA>,
     Damage per minute: <DPM>,
     Seconds in teamfight: <TEAMFIGHT_SECONDS>
 },
@@ -31,8 +32,6 @@ such as gold per minute, last hits per minute, kills, deaths, assists, and damag
 In the last parts of the game the XP earned can drop to 0, because the hero achieved the max level and can't get any more xp.
 
 General information:
-Heroes from the friendly team <FRIENDLY_TEAM>
-Heroes from the opposing team: <ENEMY_TEAM>
 The team <MATCH_OUTCOME>
 The Hero played by the player: <HERO>
 
@@ -43,6 +42,7 @@ Total values achieved by <HERO> by the end of the match:
 Total kills: <TOTAL_KILLS>
 Total deaths: <TOTAL_DEATHS>
 Total assists: <TOTAL_ASSISTS>
+Total KDA: <TOTAL_KDA>
 
 
 Here is the data comparing total values achieved by this player vs other players playing <HERO>:
@@ -62,6 +62,7 @@ class IntervalRegex:
         self.kills_regex = re.compile("<KILLS>")
         self.deaths_regex = re.compile("<DEATHS>")
         self.assists_regex = re.compile("<ASSISTS>")
+        self.kda_regex = re.compile("<KDA>")
         self.dpm_regex = re.compile("<DPM>")
         self.teamfight_seconds_regex = re.compile("<TEAMFIGHT_SECONDS>")
 
@@ -76,6 +77,7 @@ class PromptRegex:
         self.total_kills_regex = re.compile("<TOTAL_KILLS>")
         self.total_deaths_regex = re.compile("<TOTAL_DEATHS>")
         self.total_assists_regex = re.compile("<TOTAL_ASSISTS>")
+        self.total_kda_regex = re.compile("<TOTAL_KDA>")
         self.total_gold_regex = re.compile("<TOTAL_GOLD>")
         self.benchmark_gold_regex = re.compile("<BENCHMARK_GOLD>")
         self.total_xp_regex = re.compile("<TOTAL_XP>")
@@ -98,6 +100,7 @@ class PromptGenerator:
         match_outcome = "won" if hero_data["win"] == 1 else "lost"
         prompt = self.prompt_regex.match_outcome_regex.sub(match_outcome, prompt)
         prompt = self.prompt_regex.hero_regex.sub(hero_data["hero"], prompt)
+        prompt = self.prompt_regex.minute_interval_regex.sub(str(hero_data["interval"]), prompt)
         return prompt
 
     def _process_interval_data(self, prompt: str, hero_data: dict) -> str:
@@ -112,6 +115,7 @@ class PromptGenerator:
             interval_text = self.interval_regex.kills_regex.sub(str(interval_data["kills"]), interval_text)
             interval_text = self.interval_regex.deaths_regex.sub(str(interval_data["deaths"]), interval_text)
             interval_text = self.interval_regex.assists_regex.sub(str(interval_data["assists"]), interval_text)
+            interval_text = self.interval_regex.kda_regex.sub(str(interval_data["KDA"]), interval_text)
             interval_text = self.interval_regex.dpm_regex.sub(str(interval_data["damage per minute"]), interval_text)
             interval_text = self.interval_regex.teamfight_seconds_regex.sub(str(interval_data["teamfight seconds"]), interval_text)
             intervals.append(interval_text)
@@ -123,6 +127,7 @@ class PromptGenerator:
         prompt = self.prompt_regex.total_kills_regex.sub(str(total_data["Total kills"]), prompt)
         prompt = self.prompt_regex.total_deaths_regex.sub(str(total_data["Total deaths"]), prompt)
         prompt = self.prompt_regex.total_assists_regex.sub(str(total_data["Total assists"]), prompt)
+        prompt = self.prompt_regex.total_kda_regex.sub(str(total_data["Total KDA"]), prompt)
         return prompt
 
     def _process_benchmark_data(self, prompt: str, hero_data: dict) -> str:
