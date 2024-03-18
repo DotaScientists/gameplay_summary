@@ -5,3 +5,4 @@ pandas == 2.2.*
 jsonlines == 4.0.*
 matplotlib == 3.8.*
 seaborn == 0.13.*
+groq == 0.4.*

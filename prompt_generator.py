@@ -30,7 +30,7 @@ Include only valuable information that will help understand the performance of t
 The data includes various statistics recorded at different time intervals during the match,
 such as gold per minute, last hits per minute, kills, deaths, assists, and damage per minute.
 In the last parts of the game the XP earned can drop to 0, because the hero achieved the max level and can't get any more xp.
-
+<DATA_START>
 General information:
 The team <MATCH_OUTCOME>
 The Hero played by the player: <HERO>
@@ -155,13 +155,13 @@ class PromptGenerator:
                 prompt = self._process_interval_data(prompt, hero_data)
                 prompt = self._process_total_data(prompt, hero_data)
                 prompt = self._process_benchmark_data(prompt, hero_data)
-                yield prompt
+                yield prompt.split("<DATA_START>")
 
 
 if __name__ == "__main__":
     prompt_generator = PromptGenerator()
-    for prompt in prompt_generator.generate_prompt(Path('7623910241.json'),):
-        Path("output_prompt.txt").write_text(prompt)
+    for prompt_instruction, prompt_data in prompt_generator.generate_prompt(Path('7623910241.json'),):
+        Path("output_prompt.txt").write_text(prompt_instruction + prompt_data)
         break
 
 
