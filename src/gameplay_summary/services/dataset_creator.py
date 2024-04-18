@@ -2,7 +2,7 @@ from gameplay_summary.settings import Settings, Constants, PROJECT_ROOT
 from gameplay_summary.cloud.gcs_client import GCSConnector
 from gameplay_summary.db.sqllite_client import SQLLiteDB
 from gameplay_summary.api.parser_api import ParserConnector
-from gameplay_summary.services.data_extractor.data_extractor import extract_data, CorruptedDataError
+from gameplay_summary.services.data_extractor.data_extractor import DataExtractor, CorruptedDataError
 from gameplay_summary.services.prompt_generator.prompt_generator import PromptGenerator
 from gameplay_summary.api.groq_api import GroqConnector, PromptOutput
 import logging
@@ -20,6 +20,9 @@ class DatasetCreator:
         self.prompt_generator = PromptGenerator()
         self.groq = GroqConnector(settings)
         self.failed_matches = []
+        self.data_extractor = DataExtractor(
+            self.constants.HERO_INFO_PATH, self.constants.HERO_BENCHMARKS_PATH, self.settings
+        )
 
     def _load_db(self) -> SQLLiteDB:
         self.gcs_client.download(self.settings.CLOUD_DATA_PATH, self.constants.local_db_path)
@@ -42,18 +45,15 @@ class DatasetCreator:
         logger.info(f"Found {len(converted_matches)} matches not in dataset")
         return sorted(converted_matches)
 
-    def _process_jsonlines(
+    def _generate_output(
             self, match_ids: list[int]) -> list[PromptOutput] | None:
         local_temp_path = PROJECT_ROOT / "data/temp.jsonlines"
         for match_id in match_ids:
             cloud_path = self._get_jsonlines_path(match_id)
             self.gcs_client.download(cloud_path, local_temp_path)
             try:
-                extracted_data = extract_data(
-                    local_temp_path,
-                    self.constants.HERO_INFO_PATH,
-                    self.constants.HERO_BENCHMARKS_PATH,
-                    self.settings
+                extracted_data = self.data_extractor.extract_data(
+                    local_temp_path
                 )
                 for slot, instruction_prompt, data_prompt in self.prompt_generator.generate_prompt(extracted_data):
                     output = self.groq.get_response(instruction_prompt, data_prompt)
@@ -72,7 +72,7 @@ class DatasetCreator:
         )
 
     def _generate_dataset(self, match_ids: list[int]):
-        for prompt_output in tqdm.tqdm(self._process_jsonlines(match_ids), total=len(match_ids) * 10):
+        for prompt_output in tqdm.tqdm(self._generate_output(match_ids), total=len(match_ids) * 10):
             if prompt_output is not None:
                 self.db_client.insert_dataset(prompt_output)
         logger.info(f"Failed to process {len(self.failed_matches)} matches")
