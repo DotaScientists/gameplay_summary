@@ -6,3 +6,8 @@ jsonlines == 4.0.*
 matplotlib == 3.8.*
 seaborn == 0.13.*
 groq == 0.4.*
+google-cloud-storage == 2.16.*
+retry == 0.9.*
+pydantic-settings == 2.2.*
+pydantic == 2.6.*
+tqdm == 4.66.*

@@ -2,3 +2,9 @@
 venv/**
 output.json
 .idea/**
+keys/**
+data/**
+**.pyc
+**.db
+**.txt
+envs/.env
