@@ -99,7 +99,7 @@ def _postprocess_player_data(df: pd.DataFrame) -> list:
 
     return [
         {
-            "minute": row['minute'],
+            "minute": row['minute'] + 1,
             f"gold per minute": row['gold'],
             f"last hits": row['lh'],
             f"denies": row['denies'],

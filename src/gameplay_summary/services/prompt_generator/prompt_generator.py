@@ -45,6 +45,25 @@ class PromptGenerator:
         prompt = self.prompt_regex.total_kda_regex.sub(str(total_data["Total KDA"]), prompt)
         return prompt
 
+    def _compare(self, hero_value: float, benchmark_value: float) -> str:
+        if hero_value > benchmark_value:
+            return "higher than"
+        elif hero_value < benchmark_value:
+            return "lower than"
+        else:
+            return "equal to"
+
+    def _process_comparison_data(self, prompt: str, hero_data: dict) -> str:
+        total_data = hero_data["final stats"]
+        benchmark_data = hero_data["benchmarks"]
+        prompt = self.prompt_regex.gold_comparison_regex.sub(self._compare(total_data["Total gold"], benchmark_data["Total gold"]), prompt)
+        prompt = self.prompt_regex.xp_comparison_regex.sub(self._compare(total_data["Total xp"], benchmark_data["Total xp"]), prompt)
+        prompt = self.prompt_regex.lh_comparison_regex.sub(self._compare(total_data["Total last hits"], benchmark_data["Total last hits"]), prompt)
+        prompt = self.prompt_regex.kills_comparison_regex.sub(self._compare(total_data["Total kills"], benchmark_data["Total kills"]), prompt)
+        prompt = self.prompt_regex.damage_comparison_regex.sub(self._compare(total_data["Total damage"], benchmark_data["Total damage"]), prompt)
+        return prompt
+
+
     def _process_benchmark_data(self, prompt: str, hero_data: dict) -> str:
         total_data = hero_data["final stats"]
         benchmark_data = hero_data["benchmarks"]
@@ -67,5 +86,6 @@ class PromptGenerator:
             prompt = self._process_interval_data(prompt, hero_data)
             prompt = self._process_total_data(prompt, hero_data)
             prompt = self._process_benchmark_data(prompt, hero_data)
+            prompt = self._process_comparison_data(prompt, hero_data)
             output = prompt.split("<DATA_START>")
             yield slot, output[0], output[1]

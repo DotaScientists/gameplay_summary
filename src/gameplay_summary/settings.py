@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     GROQ_MAX_TOKENS: int = 1000
     GROQ_API_KEY: str
     GROQ_MODEL: str = "mixtral-8x7b-32768"
-    GROQ_DELAY: float = 2.1
+    GROQ_DELAY: float = 8.0
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / "envs/.env",

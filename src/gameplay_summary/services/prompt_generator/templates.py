@@ -44,11 +44,11 @@ Total KDA: <TOTAL_KDA>
 
 
 Here is the data comparing total values achieved by this player vs other players playing <HERO>:
-Total gold: <TOTAL_GOLD> vs average <BENCHMARK_GOLD>
-Total XP <TOTAL_XP> vs <BENCHMARK_XP>
-Total last hist: <TOTAL_LH> vs average <BENCHMARK_LH>
-Total Kills <TOTAL_KILLS> vs average <BENCHMARK_KILLS>
-Total damage <TOTAL_DAMAGE> vs average <BENCHMARK_DAMAGE>
+Total gold: <TOTAL_GOLD> <GOLD_COMPARISON> average <BENCHMARK_GOLD>
+Total XP <TOTAL_XP> <XP_COMPARISON> average <BENCHMARK_XP>
+Total last hits: <TOTAL_LH> <LH_COMPARISON> average <BENCHMARK_LH>
+Total Kills <TOTAL_KILLS> <KILLS_COMPARISON> average <BENCHMARK_KILLS>
+Total damage <TOTAL_DAMAGE> <DAMAGE_COMPARISON> average <BENCHMARK_DAMAGE>
 """
 class IntervalRegex:
     def __init__(self):
@@ -78,12 +78,17 @@ class PromptRegex:
         self.total_kda_regex = re.compile("<TOTAL_KDA>")
         self.total_gold_regex = re.compile("<TOTAL_GOLD>")
         self.benchmark_gold_regex = re.compile("<BENCHMARK_GOLD>")
+        self.gold_comparison_regex = re.compile("<GOLD_COMPARISON>")
         self.total_xp_regex = re.compile("<TOTAL_XP>")
         self.benchmark_xp_regex = re.compile("<BENCHMARK_XP>")
+        self.xp_comparison_regex = re.compile("<XP_COMPARISON>")
         self.total_lh_regex = re.compile("<TOTAL_LH>")
         self.benchmark_lh_regex = re.compile("<BENCHMARK_LH>")
+        self.lh_comparison_regex = re.compile("<LH_COMPARISON>")
         self.total_kills_regex = re.compile("<TOTAL_KILLS>")
         self.benchmark_kills_regex = re.compile("<BENCHMARK_KILLS>")
+        self.kills_comparison_regex = re.compile("<KILLS_COMPARISON>")
         self.total_damage_regex = re.compile("<TOTAL_DAMAGE>")
         self.benchmark_damage_regex = re.compile("<BENCHMARK_DAMAGE>")
+        self.damage_comparison_regex = re.compile("<DAMAGE_COMPARISON>")
 
